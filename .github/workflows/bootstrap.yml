@@ -1,1 +1,38 @@
-BB52-AF97
+name: Bootstrap verified Lean snapshot
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    if: github.repository == 'wangyangvictor/cubic-lean-lite'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify and unpack the prepared source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='e781953bc8eef539ac98218c6437f29f191c73e4858925e795ce6de9c47b5909'
+          actual=$(sha256sum cubic-lean-bootstrap.tar.gz | cut -d' ' -f1)
+          test "$actual" = "$expected"
+          source_dir="$RUNNER_TEMP/cubic-lean-source"
+          mkdir -p "$source_dir"
+          tar -xzf cubic-lean-bootstrap.tar.gz -C "$source_dir"
+          test "$(find "$source_dir" -type f | wc -l)" -eq 1772
+          test -z "$(find "$source_dir" -type l -print -quit)"
+          rsync -a --delete --exclude='.git' "$source_dir"/ ./
+      - name: Commit the source tree and remove the bootstrap artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'Publish checked cubic forms formalization snapshot'
+          git push origin HEAD:main
